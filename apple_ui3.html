@@ -33,7 +33,6 @@
   <main class="main-container">
     <div class="ag-format-container">
       <div class="ag-courses_box">
-        <!-- WEATHER CARD -->
         <div class="ag-courses_item" id="weather-card">
           <div class="ag-courses-item_bg"></div>
           <div class="ag-courses-item_title">
@@ -44,54 +43,90 @@
           <div class="ag-courses-item_date-box">สภาพอากาศ: <span id="weather-description">...</span></div>
         </div>
 
-        <!-- WATER -->
         <div class="ag-courses_item">
           <div class="ag-courses-item_bg"></div>
           <div class="ag-courses-item_title"><i class="fas fa-cloud-rain"></i> โอกาสฝนตก</div>
           <div class="ag-courses-item_date-box"><span id="rain-probability">... %</span></div>
         </div>
 
-        <!-- SOIL -->
         <div class="ag-courses_item">
           <div class="ag-courses-item_bg"></div>
           <div class="ag-courses-item_title"><i class="fas fa-leaf"></i> ความชื้นในดิน</div>
           <div class="ag-courses-item_date-box"><span id="soil-moisture">... %</span></div>
         </div>
 
-        <!-- AIR HUMIDITY -->
         <div class="ag-courses_item">
           <div class="ag-courses-item_bg"></div>
           <div class="ag-courses-item_title"><i class="fas fa-tint"></i> ความชื้นในอากาศ</div>
           <div class="ag-courses-item_date-box"><span id="air-humidity">... %</span></div>
         </div>
 
-        <!-- STATUS -->
         <div class="ag-courses_item">
           <div class="ag-courses-item_bg"></div>
           <div class="ag-courses-item_title"><i class="fas fa-power-off"></i> สถานะการทำงาน</div>
           <div class="status-container">
             <div id="status-dot"></div>
             <span id="status-text">Checking...</span>
+            <div class="ag-courses-item_date-box"><span id="time-box" >...</span></div>
           </div>
         </div>
       </div>
-<div class="ag-courses_item pump-status-card">
-  <div class="ag-courses-item_bg"></div>
-  <div class="ag-courses-item_title">
-    <i class="fas fa-water"></i> สถานะปั๊ม
-  </div>
-  <div class="status-container">
-    <div id="pump-dot"></div>
-    <span id="pump-text">Loading...</span>
-  </div>
-</div>
+      
+      <div class="ag-courses_item pump-status-card">
+        <div class="ag-courses-item_bg"></div>
+        <div class="ag-courses-item_title">
+          <i class="fas fa-water"></i> สถานะปั๊ม
+        </div>
+        <div class="status-container">
+          <div id="pump-dot"></div>
+          <span id="pump-text">Loading...</span>
+        </div>
+      </div>
+
+
+<script>
+  // โค้ดสำหรับควบคุมปั๊ม (ใช้ JSONBin)
+  const BIN_ID = "68fe94c7ae596e708f2ebc87";
+  const ACCESS_KEY = "$2a$10$rKnMDmrJtgjKVrtT1vksSOism/gMhZXC1lKlaadWVCaO2EES5mkGG"; 
+  let pumpState = 0;
+
+  async function updatePumpState(state) {
+    try {
+      const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Master-Key": ACCESS_KEY,
+          "X-Bin-Versioning": "false"
+        },
+        body: JSON.stringify({ record: { record: { pump: state } } })
+      });
+
+      if (!res.ok) throw new Error("Failed to update");
+
+      pumpState = state;
+      const btn = document.getElementById("pump-btn");
+      btn.textContent = state ? "ปิดปั๊ม" : "เปิดปั๊ม";
+      btn.style.backgroundColor = state ? "#ff3b30" : "#007aff";
+
+    } catch (err) {
+      console.error("❌ ไม่สามารถอัปเดตสถานะปั๊มได้:", err);
+    }
+  }
+
+  document.getElementById("pump-btn").addEventListener("click", () => {
+    updatePumpState(pumpState ? 0 : 1);
+  });
+</script>
+
+
       <div class="ag-courses_box graph-container">
         <div class="graph-card">
-          <h2 class="graph-title"><i class="fas fa-water"></i> กราฟปริมาณน้ำ</h2>
+          <h2 class="graph-title"><i class="fas fa-water"></i> กราฟโอกาสฝนตก</h2>
           <canvas id="waterLevelChart"></canvas>
         </div>
         <div class="graph-card">
-          <h2 class="graph-title"><i class="fas fa-tint"></i> กราฟความชื้น (ดินและอากาศ)</h2>
+          <h2 class="graph-title"><i class="fas fa-tint"></i> กราฟความชื้นในดิน</h2>
           <canvas id="moistureChart"></canvas>
         </div>
         <div class="graph-card map-card">
@@ -108,17 +143,21 @@
 
 <script>
 const WEATHER_API_KEY = '4dbc27312596168489e3c0398366f2d5';
-const city = 'Tha Muang';
-let lastUpdateTime = null; // เวลาอัปเดตล่าสุด
+const city = 'Tha Muang'; 
+const SHEET_API = "https://script.google.com/macros/s/AKfycbw5EzzEbt38WhpWfS1qa02Xr83ynFnBKyBX5PAp-9MUbHdbcAwA36KcGceuQvi2nFJqDw/exec?api=latest";
+let lastUpdateTime = 0;
+let isOnline = false;
 
 // 🔹 ดึงข้อมูลสภาพอากาศจาก OpenWeather
 async function fetchWeatherData() {
+  console.log("📡 เริ่มดึงข้อมูลอากาศ...");
   try {
     const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${WEATHER_API_KEY}&units=metric&lang=th`);
+    console.log("🌐 Response:", res.status);
     if (!res.ok) throw new Error("Failed to fetch weather data");
     return await res.json();
   } catch (err) {
-    console.warn("Weather API error, using mock data");
+    console.warn("Weather API error, using mock data", err);
     return {
       name: 'Bangkok (Mock)',
       main: { temp: 32.5, humidity: 75 },
@@ -128,60 +167,192 @@ async function fetchWeatherData() {
   }
 }
 
-// 🔹 ดึงข้อมูลเซนเซอร์จาก Google Apps Script
-async function fetchSensorData() {
-  try {
-    const res = await fetch("https://script.google.com/macros/s/AKfycbw5EzzEbt38WhpWfS1qa02Xr83ynFnBKyBX5PAp-9MUbHdbcAwA36KcGceuQvi2nFJqDw/exec?api=latest", { cache: "no-cache" });
-    if (!res.ok) throw new Error("Failed to fetch sensor data");
 
+// 🟢 เปลี่ยนสถานะใน card (Online/Offline)
+async function updateTime() {
+  try {
+    const res = await fetch(SHEET_API, { cache: "no-cache" }); 
+    const data = await res.json();
+
+    let apiTimeStr = null;
+    if (data.rows && data.rows.length) {
+      apiTimeStr = data.rows[0]["วันที่/เวลา"];
+    } else if (Array.isArray(data) && data.length) {
+      apiTimeStr = data[0]["วันที่/เวลา"];
+    }
+
+    const dot = document.getElementById('status-dot');
+    const text = document.getElementById('status-text');
+
+    if (!apiTimeStr) {
+      text.textContent = "❌ ไม่พบข้อมูลเวลา";
+      dot.style.backgroundColor = "gray";
+      return;
+    }
+
+    const apiTime = new Date(apiTimeStr);
+    const now = new Date();
+    const diffMin = ((now - apiTime) / 60000).toFixed(2);
+
+    // ✅ เงื่อนไขใหม่ — ถ้าเวลาต่างน้อยกว่า 2 นาที = Online
+    if (diffMin < 2) {
+      dot.style.backgroundColor = '#28a745';
+      text.textContent = 'Online';
+      text.style.color = '#28a745';
+    } else {
+      dot.style.backgroundColor = '#dc3545';
+      text.textContent = 'Offline';
+      text.style.color = '#dc3545';
+    }
+
+    // ✅ สร้างหรืออัปเดต text element สำหรับแสดงเวลา
+    let timeBox = document.getElementById("time-box");
+    if (!timeBox) {
+      timeBox = document.createElement("div");
+      timeBox.id = "time-box";
+      timeBox.style.marginTop = "10px";
+      timeBox.style.color = "#ccc";
+      document.body.appendChild(timeBox);
+    }
+
+    timeBox.innerHTML = `
+      <p>เวลาเครื่องทำงานล่าสุด: ${apiTime.toLocaleString('th-TH')}</p>
+      <p>เวลาปัจจุบัน: ${now.toLocaleString('th-TH')}</p>
+      <p>ต่างกัน: ${diffMin} นาที</p>
+    `;
+
+  } catch (err) {
+    console.error("❌ Error fetching API time:", err);
+    const text = document.getElementById('status-text');
+    const dot = document.getElementById('status-dot');
+    text.textContent = "⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ API";
+    dot.style.backgroundColor = "gray";
+  }
+}
+
+// ✅ เรียกใช้และอัปเดตทุก 5 วิ
+updateTime();
+setInterval(updateTime, 5000);
+
+
+// =========================================================================
+// ✅ ส่วนที่แก้ไข: ย้ายฟังก์ชันสร้างกราฟออกนอก DOMContentLoaded เพื่อแก้ปัญหา Scope
+// =========================================================================
+
+// ตัวแปรเก็บ Chart Instances
+window.moistureChart = null;
+window.waterChart = null;
+
+// ✅ ฟังก์ชันสร้าง/อัปเดตกราฟความชื้นในดินโดยเฉพาะ
+function createMoistureChart(rows) {
+  const labels = rows.map(r => new Date(r["วันที่/เวลา"]).toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }));
+  const soilData = rows.map(r => Number(r["% ความชื้นดิน"] || 0));
+
+  const moistCanvas = document.getElementById('moistureChart');
+  if (moistCanvas) {
+    const moistCtx = moistCanvas.getContext('2d');
+    if (window.moistureChart) window.moistureChart.destroy();
+    window.moistureChart = new Chart(moistCtx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'ความชื้นในดิน (%)',
+          data: soilData,
+          borderColor: 'rgba(148,216,45,1)',
+          backgroundColor: 'rgba(148,216,45,0.2)',
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#fff' } } },
+        scales: {
+          x: { ticks: { color: '#fff' } },
+          y: { beginAtZero: true, ticks: { color: '#fff' } }
+        }
+      }
+    });
+  } else {
+    console.error("Moisture Chart Canvas Element not found.");
+  }
+}
+
+// ✅ ฟังก์ชันสร้าง/อัปเดตกราฟโอกาสฝนตกโดยเฉพาะ
+function createWaterChart(rows) {
+  const labels = rows.map(r => new Date(r["วันที่/เวลา"]).toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }));
+  const rainData = rows.map(r => Number(r["โอกาสฝนตก (%)"] || 0));
+
+  const waterCanvas = document.getElementById('waterLevelChart');
+  if (waterCanvas) {
+    const waterCtx = waterCanvas.getContext('2d');
+    if (window.waterChart) window.waterChart.destroy();
+    window.waterChart = new Chart(waterCtx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'โอกาสฝนตก (%)',
+          data: rainData,
+          borderColor: 'rgba(54,162,235,1)',
+          backgroundColor: 'rgba(54,162,235,0.2)',
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#fff' } } },
+        scales: {
+          x: { ticks: { color: '#fff' } },
+          y: { beginAtZero: true, ticks: { color: '#fff' } }
+        }
+      }
+    });
+  } else {
+    console.error("Water Chart Canvas Element not found.");
+  }
+}
+
+// 📈 โหลดข้อมูลและเรียกฟังก์ชันแยก (main update function)
+async function updateCharts() {
+  try {
+    const res = await fetch("https://script.google.com/macros/s/AKfycbw5EzzEbt38WhpWfS1qa02Xr83ynFnBKyBX5PAp-9MUbHdbcAwA36KcGceuQvi2nFJqDw/exec?api=latest&limit=20", { cache: "no-cache" });
     const data = await res.json();
     const rows = data.rows || [];
-    return rows.length ? rows[rows.length - 1] : null; // ข้อมูลล่าสุด
-  } catch (err) {
-    console.error("Error fetching sensor data:", err);
-    return null;
-  }
-}
+    if (!rows.length) {
+      console.warn("No rows found in Sheet data");
+      return;
+    }
 
-// 🟢 เปลี่ยนสถานะใน card
-function setStatus(online) {
-  const dot = document.getElementById('status-dot');
-  const text = document.getElementById('status-text');
-  if (online) {
-    dot.style.backgroundColor = '#28a745';
-    text.textContent = 'Online';
-    text.style.color = '#28a745';
-  } else {
-    dot.style.backgroundColor = '#dc3545';
-    text.textContent = 'Offline';
-    text.style.color = '#dc3545';
-  }
-}
-
-// ⏱️ ตรวจว่าเกิน 2 นาทีไหม
-function checkOfflineTimeout() {
-  if (!lastUpdateTime) return;
-  const diff = (Date.now() - lastUpdateTime) / 1000;
-  if (diff > 120) setStatus(false);
-}
-
-// 📡 อัปเดตค่าจาก API
-async function updateSensors() {
-  const data = await fetchSensorData();
-  if (data) {
-    lastUpdateTime = Date.now();
-    setStatus(true);
-
-    // ✅ อัปเดตค่าใน card ตาม key ใหม่
-    const soilMoisture = Number(data["% ความชื้นดิน"] || 0);
-    const rainProbability = Number(data["โอกาสฝนตก (%)"] || 0);
-
+    // อัปเดต Card
+    const latestData = rows[0];
+    const soilMoisture = Number(latestData["% ความชื้นดิน"] || 0);
+    const rainProbability = Number(latestData["โอกาสฝนตก (%)"] || 0);
     document.getElementById('rain-probability').textContent = rainProbability + ' %';
     document.getElementById('soil-moisture').textContent = soilMoisture + ' %';
+
+    // เรียกฟังก์ชันสร้างกราฟที่แยกออกมา
+    createMoistureChart(rows); 
+    createWaterChart(rows);    
+
+  } catch (err) {
+    console.error("Error loading charts:", err);
   }
 }
 
-// 📊 โหลดข้อมูลสภาพอากาศ + กราฟ
+// =========================================================================
+// ✅ ส่วนที่เรียกเมื่อ DOM โหลดเสร็จ (เหลือแค่โค้ดที่ต้องรันเมื่อ DOM พร้อมเท่านั้น)
+// =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
   const weather = await fetchWeatherData();
   document.getElementById('city').textContent = weather.name;
@@ -197,78 +368,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   L.marker([weather.coord.lat, weather.coord.lon]).addTo(map).bindPopup(weather.name);
 
-  // 📈 โหลดกราฟจาก API ใหม่
-  async function updateCharts() {
-    try {
-      const res = await fetch("https://script.google.com/macros/s/AKfycbw5EzzEbt38WhpWfS1qa02Xr83ynFnBKyBX5PAp-9MUbHdbcAwA36KcGceuQvi2nFJqDw/exec?api=latest&limit=20", { cache: "no-cache" });
-      const data = await res.json();
-      const rows = data.rows || [];
-      if (!rows.length) return;
-
-      const labels = rows.map(r => new Date(r["วันที่/เวลา"]).toLocaleTimeString('th-TH', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }));
-      const soilData = rows.map(r => Number(r["% ความชื้นดิน"] || 0));
-      const rainData = rows.map(r => Number(r["โอกาสฝนตก (%)"] || 0));
-
-      // 🌧️ กราฟโอกาสฝนตก
-      const waterCtx = document.getElementById('waterLevelChart').getContext('2d');
-      new Chart(waterCtx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'โอกาสฝนตก (%)',
-            data: rainData,
-            borderColor: 'rgba(54,162,235,1)',
-            backgroundColor: 'rgba(54,162,235,0.2)',
-            fill: true,
-            tension: 0.4
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { labels: { color: '#fff' } } },
-          scales: {
-            x: { ticks: { color: '#fff' } },
-            y: { beginAtZero: true, ticks: { color: '#fff' } }
-          }
-        }
-      });
-
-      // 🌱 กราฟความชื้นในดิน
-      const moistCtx = document.getElementById('moistureChart').getContext('2d');
-      new Chart(moistCtx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'ความชื้นในดิน (%)',
-            data: soilData,
-            borderColor: 'rgba(148,216,45,1)',
-            backgroundColor: 'rgba(148,216,45,0.2)',
-            fill: true,
-            tension: 0.4
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { labels: { color: '#fff' } } },
-          scales: {
-            x: { ticks: { color: '#fff' } },
-            y: { beginAtZero: true, ticks: { color: '#fff' } }
-          }
-        }
-      });
-    } catch (err) {
-      console.error("Error loading charts:", err);
-    }
-  }
-
   updateCharts();
-  setInterval(updateCharts, 10000);
+  setInterval(updateCharts, 10000); // อัปเดต Card และ Chart ทุก 10 วินาที
 
   // 🧩 Layout Drag Mode
   const settingsButton = document.getElementById('settings-button');
@@ -300,9 +401,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  updateSensors();
-  setInterval(updateSensors, 5000);
-  setInterval(checkOfflineTimeout, 10000);
 });
 
 // 🔹 ปรับโค้ดดึงสถานะปั๊มตาม API ใหม่
@@ -320,8 +418,8 @@ async function fetchPumpStatus() {
     const rows = data.rows || [];
     if (!rows.length) throw new Error("No data");
 
-    const latest = rows[rows.length - 1];
-    console.log("Latest Row:", latest); // ✅ debug
+    const latest = rows[0]; // ข้อมูลล่าสุด
+    console.log("Latest Row:", latest); 
     const pumpStatus = latest["ปั๊ม"] || "ไม่ทราบ";
 
     const dot = document.getElementById("pump-dot");
@@ -332,7 +430,7 @@ async function fetchPumpStatus() {
       textEl.textContent = "กำลังทำงาน 💧";
     } else if (["หยุด", "0", "off"].includes(pumpStatus)) {
       dot.style.backgroundColor = "#ff3b30";
-      textEl.textContent = "หยุด 🛑";
+      textEl.textContent = "หยุด";
     } else {
       dot.style.backgroundColor = "gray";
       textEl.textContent = `⚠️ ค่าปั๊มไม่รู้จัก (${pumpStatus})`;
@@ -347,11 +445,12 @@ async function fetchPumpStatus() {
 }
 
 
-
 fetchPumpStatus();
 setInterval(fetchPumpStatus, 5000);
 </script>
 
-
+<style>
+  
+</style>
 </body>
 </html>
